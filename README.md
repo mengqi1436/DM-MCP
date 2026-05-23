@@ -251,28 +251,52 @@ go build -o dm-mcp.exe
 
 也可以通过环境变量 `DM_FLDR_PATH` 配置 `dmfldr` 路径；当请求参数中提供 `dmfldr_path` 时，以请求参数为准。工具会为每个 CSV 生成独立的 `.ctl`、`.log`、`.bad` 文件，并返回每个文件的执行状态。
 
-## 配置
+## 快速开始
 
-通过环境变量配置数据库连接：
+### 1. 编译
 
 ```bash
-export DM_HOST=localhost      # 数据库主机
-export DM_PORT=5236           # 数据库端口
-export DM_USER=SYSDBA         # 用户名
-export DM_PASSWORD=your_pass  # 密码
-export DM_DATABASE=DMDB       # 数据库名
-export DM_FLDR_PATH=/dm/dmdbms/bin/dmfldr  # 可选，dmfldr 路径
+cd dm-mcp
+go mod tidy
+go build -o dm-mcp.exe
 ```
 
-## 与 Claude Desktop 集成
+### 2. 环境变量
 
-在 `claude_desktop_config.json` 中添加：
+| 变量 | 必填 | 默认值 | 说明 |
+|------|------|--------|------|
+| `DM_HOST` | 否 | `localhost` | 数据库主机地址 |
+| `DM_PORT` | 否 | `5236` | 数据库端口 |
+| `DM_USER` | 否 | `SYSDBA` | 数据库用户名 |
+| `DM_PASSWORD` | 是 | — | 数据库密码 |
+| `DM_DATABASE` | 否 | `DMDB` | 数据库名 |
+| `DM_FLDR_PATH` | 否 | `dmfldr` | dmfldr 工具路径（CSV 导入用） |
+
+### 3. dmfldr 配置（CSV 导入功能）
+
+项目已内置 `dmfldr-bin/` 目录，包含 Windows 版 dmfldr 及其运行时依赖。默认会使用系统 PATH 中的 `dmfldr`，如需使用内置版本，设置环境变量：
+
+```bash
+# Windows
+set DM_FLDR_PATH=./dmfldr-bin/dmfldr.exe
+
+# Linux（需自行放置 dmfldr 二进制）
+export DM_FLDR_PATH=/opt/dmdbms/bin/dmfldr
+```
+
+## MCP 配置
+
+本项目通过 stdio 方式提供 MCP 服务，支持所有兼容 MCP 协议的客户端。
+
+### Claude Desktop
+
+编辑 `claude_desktop_config.json`（位于 `%APPDATA%\Claude\` 或 `~/.config/claude/`）：
 
 ```json
 {
   "mcpServers": {
     "dm-database": {
-      "command": "path/to/dm-mcp.exe",
+      "command": "D:/path/to/dm-mcp.exe",
       "args": [],
       "env": {
         "DM_HOST": "localhost",
@@ -284,6 +308,66 @@ export DM_FLDR_PATH=/dm/dmdbms/bin/dmfldr  # 可选，dmfldr 路径
     }
   }
 }
+```
+
+### Claude Code
+
+在项目根目录创建 `.mcp.json`，或通过命令添加：
+
+```bash
+claude mcp add dm-database -- D:/path/to/dm-mcp.exe
+```
+
+手动配置 `.mcp.json`：
+
+```json
+{
+  "mcpServers": {
+    "dm-database": {
+      "command": "D:/path/to/dm-mcp.exe",
+      "env": {
+        "DM_HOST": "localhost",
+        "DM_PORT": "5236",
+        "DM_USER": "SYSDBA",
+        "DM_PASSWORD": "your_password",
+        "DM_DATABASE": "DMDB"
+      }
+    }
+  }
+}
+```
+
+### Cursor
+
+编辑 `~/.cursor/mcp.json`（全局）或项目下 `.cursor/mcp.json`：
+
+```json
+{
+  "mcpServers": {
+    "dm-database": {
+      "command": "D:/path/to/dm-mcp.exe",
+      "env": {
+        "DM_HOST": "localhost",
+        "DM_PORT": "5236",
+        "DM_USER": "SYSDBA",
+        "DM_PASSWORD": "your_password",
+        "DM_DATABASE": "DMDB"
+      }
+    }
+  }
+}
+```
+
+### 其他 MCP 客户端
+
+本项目使用标准 MCP stdio 协议，任何支持 MCP 的客户端均可接入。启动命令：
+
+```bash
+# 直接运行（需先设置环境变量）
+./dm-mcp.exe
+
+# 或通过环境变量内联传入
+DM_HOST=localhost DM_PORT=5236 DM_USER=SYSDBA DM_PASSWORD=your_pass DM_DATABASE=DMDB ./dm-mcp.exe
 ```
 
 ## 项目结构
