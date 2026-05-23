@@ -1,0 +1,44 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Keep dmfldr-bin (DM fast loader runtime)
+!dmfldr-bin/*.exe
+!dmfldr-bin/*.dll
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Go workspace
+go.work
+go.work.sum
+
+# IDE
+.idea/
+.vscode/
+.arts/
+.codeartsdoer/
+.claude/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Go caches (should use system default, not project-local)
+.gocache/
+.gomodcache/
+
+# Environment files
+.env
+.env.local

@@ -1,0 +1,82 @@
+{
+  "tool": "dm_execute",
+  "arguments": {
+    "tool_name": "batch_import_csv",
+    "params": {
+      "work_dir": "E:/RHPT/TOPI1",
+      "delimiter": ",",
+      "enclosed_by": "\"",
+      "character_code": "UTF-8",
+      "rows": 50000,
+      "direct": true,
+      "index_option": 2,
+      "mode": "APPEND",
+      "errors": 100,
+      "files": [
+        {
+          "csv_file": "E:/RHPT/TOPI1/BAS_COMPANY.csv",
+          "schema": "SYSDBA",
+          "table": "BAS_COMPANY",
+          "columns": [
+            "ID",
+            "COMPANYNO",
+            "COMPANYNAME",
+            "SHORTNAME",
+            "MNEMONIC",
+            "CONTACT",
+            "CONTACTPHONENO",
+            "FAXNUMBER",
+            "ADDRESS",
+            "ZIPCODE",
+            "ADMINISTRATORCODE",
+            "NOTE",
+            "STATUS",
+            "CREATORID",
+            "CREATEDTIME",
+            "MODIFIERID",
+            "MODIFIEDTIME",
+            "BGIMGPATH",
+            "INTRO",
+            "LOGOPATH",
+            "DEFAULTPASSWORD",
+            "SKYLIGHTURL",
+            "DELETERID",
+            "DELETEDTIME",
+            "ISDELETED",
+            "COMPANY_TYPE_ID"
+          ],
+          "column_types": [
+            "CHAR",
+            "CHAR",
+            "CHAR",
+            "CHAR",
+            "CHAR",
+            "CHAR",
+            "CHAR",
+            "CHAR",
+            "CHAR",
+            "CHAR",
+            "CHAR",
+            "CHAR",
+            "INTEGER",
+            "CHAR",
+            "TIMESTAMP 'YYYY-MM-DD HH:MI:SS.FF'",
+            "CHAR",
+            "TIMESTAMP 'YYYY-MM-DD HH:MI:SS.FF'",
+            "CHAR",
+            "CHAR",
+            "CHAR",
+            "CHAR",
+            "CHAR",
+            "CHAR",
+            "TIMESTAMP 'YYYY-MM-DD HH:MI:SS.FF'",
+            "INTEGER",
+            "CHAR"
+          ],
+          "null_if": "",
+          "skip": 1
+        }
+      ]
+    }
+  }
+}
