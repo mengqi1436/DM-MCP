@@ -12,17 +12,78 @@
 - `dm_list_tools` - 列出所有可用工具（可按类别筛选）
 - `dm_execute` - 执行指定的操作工具
 
-#### 操作工具类别
+#### 操作工具类别（35 个）
 
-| 类别 | 工具数 | 说明 |
-|------|-------|------|
-| `query` | 4 | 查询工具：query, query_one, query_paginated, count |
-| `dml` | 4 | DML工具：insert, insert_batch, update, delete |
-| `ddl` | 11 | DDL工具：create_table, alter_table, drop_table, create_index, drop_index, execute_ddl, batch_create_tables, batch_create_indexes, batch_drop_tables, batch_drop_indexes, batch_execute_ddl |
-| `metadata` | 8 | 元数据工具：list_databases, list_schemas, list_tables, list_views, describe_table, list_indexes, search_indexes, describe_index |
-| `advanced` | 4 | 高级工具：execute_transaction, call_procedure, call_function, explain_plan |
-| `admin` | 3 | 管理工具：list_users, table_statistics, database_info |
-| `import` | 1 | 导入工具：batch_import_csv |
+##### query — 查询工具（4 个）
+
+| 工具 | 说明 | 必填参数 | 可选参数 |
+|------|------|----------|----------|
+| `query` | 执行 SQL SELECT 查询，返回结果集 | `sql` | `params` |
+| `query_one` | 执行查询，只返回第一条记录（适合按 ID 查单条） | `sql` | `params` |
+| `query_paginated` | 分页查询，自动拼接 LIMIT/OFFSET | `sql` | `page`（默认 1）、`page_size`（默认 20） |
+| `count` | 统计表记录数，支持 WHERE 条件 | `table` | `where` |
+
+##### dml — 数据操作工具（4 个）
+
+| 工具 | 说明 | 必填参数 | 可选参数 |
+|------|------|----------|----------|
+| `insert` | 插入一条数据，自动生成参数化 SQL | `table`、`data`（字段名:值） | — |
+| `insert_batch` | 批量插入多条数据，使用事务保证原子性 | `table`、`rows`（数据数组） | — |
+| `update` | 按条件更新数据（必须带 WHERE 防止全表更新） | `table`、`data`、`where` | — |
+| `delete` | 按条件删除数据（必须带 WHERE 防止全表删除） | `table`、`where` | — |
+
+##### ddl — 数据定义工具（10 个）
+
+| 工具 | 说明 | 必填参数 | 可选参数 |
+|------|------|----------|----------|
+| `create_table` | 创建表，支持列类型、主键、非空、默认值定义 | `table_name`、`columns` | — |
+| `alter_table` | 修改表结构（ADD/MODIFY/DROP 列） | `table_name`、`operation`、`column` | `type`（ADD/MODIFY 时需要） |
+| `drop_table` | 删除表 | `table_name` | `if_exists` |
+| `create_index` | 创建索引 | `index_name`、`table_name`、`columns` | `unique` |
+| `drop_index` | 删除索引，支持 `SCHEMA.INDEX` 全名 | `index_name` | `schema`、`if_exists` |
+| `execute_ddl` | 执行任意 DDL 语句（CREATE/ALTER/DROP） | `sql` | — |
+| `batch_create_tables` | 批量创建表，支持事务模式 | `tables`（表定义数组） | `atomic`（默认 false，逐条执行） |
+| `batch_create_indexes` | 批量创建索引，支持事务模式 | `indexes`（索引定义数组） | `atomic`（默认 false） |
+| `batch_drop_tables` | 批量删除表 | `table_names`（表名数组） | `if_exists`、`atomic` |
+| `batch_drop_indexes` | 批量删除索引 | `index_names`（索引名数组） | `if_exists`、`atomic` |
+
+> **注意**：达梦 DDL 可能触发隐式提交，`atomic=true` 时语义未必等同"单事务全回滚"。推荐使用 `atomic=false`（默认）逐条执行并检查结果。
+
+##### metadata — 元数据查询工具（8 个）
+
+| 工具 | 说明 | 必填参数 | 可选参数 |
+|------|------|----------|----------|
+| `list_databases` | 列出服务器上的所有数据库 | — | — |
+| `list_schemas` | 列出当前数据库的所有模式（Schema） | — | — |
+| `list_tables` | 列出表，可按模式筛选 | — | `schema` |
+| `list_views` | 列出视图，可按模式筛选 | — | `schema` |
+| `describe_table` | 获取表结构（列名、类型、长度、是否可空、默认值） | `table_name` | — |
+| `list_indexes` | 列出指定表的所有索引 | `table_name` | — |
+| `search_indexes` | 索引目录检索，支持按表名/索引名模糊搜索 | — | `owner_scope`（USER/ALL）、`schema`、`table_name`、`index_name`、`index_match`（exact/prefix/like） |
+| `describe_index` | 获取索引详情（类型、唯一性、状态）及索引列信息 | `index_name` | `table_name`、`owner_scope`、`schema` |
+
+##### advanced — 高级功能工具（4 个）
+
+| 工具 | 说明 | 必填参数 | 可选参数 |
+|------|------|----------|----------|
+| `execute_transaction` | 在事务中执行多条 SQL，全成功提交/任意失败回滚 | `statements`（SQL 语句数组） | — |
+| `call_procedure` | 调用存储过程 | `procedure_name` | `params`（参数数组） |
+| `call_function` | 调用函数并返回结果 | `function_name` | `params`（参数数组） |
+| `explain_plan` | 分析 SQL 执行计划，用于性能调优 | `sql` | — |
+
+##### admin — 管理维护工具（3 个）
+
+| 工具 | 说明 | 必填参数 | 可选参数 |
+|------|------|----------|----------|
+| `list_users` | 列出所有数据库用户（用户名、状态、创建时间、默认表空间） | — | — |
+| `table_statistics` | 获取表统计信息（实际行数、估算行数、块数、最后分析时间） | `table_name` | — |
+| `database_info` | 获取数据库服务器基本信息（版本、实例、数据库详情） | — | — |
+
+##### import — 数据导入工具（1 个）
+
+| 工具 | 说明 | 必填参数 | 可选参数 |
+|------|------|----------|----------|
+| `batch_import_csv` | 使用 DMFLDR 批量并行导入 CSV 文件，支持字段类型映射、空值处理、多种装载模式 | `files`（CSV 文件配置数组） | `dmfldr_path`、`work_dir`、`delimiter`（默认 `,`）、`enclosed_by`、`character_code`（默认 UTF-8）、`rows`（默认 50000）、`direct`（默认 true）、`index_option`（默认 2）、`mode`（APPEND/REPLACE/INSERT）、`max_parallel`（默认 2）、`timeout_seconds`、`errors` |
 
 ## 使用方法
 
