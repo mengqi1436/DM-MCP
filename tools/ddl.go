@@ -1,7 +1,6 @@
 package tools
 
 import (
-	"dm-mcp/database"
 	"fmt"
 	"strings"
 )
@@ -82,10 +81,8 @@ func registerDDLTools() {
 		Description: "批量删除索引。参数: index_names-名称数组(可为 SCHEMA.INDEX), if_exists(可选), atomic(可选,默认false)。" + ddlAtomicNote,
 		Params:      []string{"index_names", "if_exists", "atomic"},
 	}, handleBatchDropIndexes)
-
 }
 
-// buildCreateTableSQL 由列定义生成 CREATE TABLE 语句
 func buildCreateTableSQL(tableName string, columns []interface{}) (string, error) {
 	if tableName == "" {
 		return "", fmt.Errorf("table_name 不能为空")
@@ -137,7 +134,6 @@ func buildCreateTableSQL(tableName string, columns []interface{}) (string, error
 	return sql, nil
 }
 
-// buildCreateIndexSQL 生成 CREATE [UNIQUE] INDEX 语句
 func buildCreateIndexSQL(indexName, tableName string, columns []interface{}, unique bool) (string, error) {
 	if indexName == "" || tableName == "" {
 		return "", fmt.Errorf("index_name 与 table_name 不能为空")
@@ -159,7 +155,6 @@ func buildCreateIndexSQL(indexName, tableName string, columns []interface{}, uni
 	return sql, nil
 }
 
-// buildDropIndexSQL 生成 DROP INDEX [IF EXISTS] [schema.]index
 func buildDropIndexSQL(indexName, schema string, ifExists bool) string {
 	full := strings.TrimSpace(indexName)
 	if schema != "" && !strings.Contains(full, ".") {
@@ -188,22 +183,22 @@ func runBatchDDL(statements []string, atomic bool) (map[string]interface{}, erro
 	}
 
 	if atomic {
-		if err := database.ExecuteTransaction(statements); err != nil {
+		if err := executeTransactionDB(statements); err != nil {
 			return nil, err
 		}
 		return map[string]interface{}{
-			"success":   true,
-			"atomic":    true,
-			"count":     len(statements),
-			"note":      ddlAtomicNote,
-			"executed":  len(statements),
+			"success":  true,
+			"atomic":   true,
+			"count":    len(statements),
+			"note":     ddlAtomicNote,
+			"executed": len(statements),
 		}, nil
 	}
 
 	results := make([]map[string]interface{}, 0, len(statements))
 	okCount := 0
 	for i, stmt := range statements {
-		err := database.ExecuteDDL(stmt)
+		err := executeDDLDB(stmt)
 		item := map[string]interface{}{
 			"index":     i,
 			"statement": stmt,
@@ -240,8 +235,8 @@ func handleCreateTable(params map[string]interface{}) (interface{}, error) {
 		return nil, err
 	}
 
-	if err := database.ExecuteDDL(sql); err != nil {
-		return nil, fmt.Errorf("创建表失败: %v", err)
+	if err := executeDDLDB(sql); err != nil {
+		return nil, err
 	}
 
 	return map[string]interface{}{
@@ -278,9 +273,8 @@ func handleAlterTable(params map[string]interface{}) (interface{}, error) {
 		return nil, fmt.Errorf("不支持的操作类型，请使用ADD、MODIFY或DROP")
 	}
 
-	err := database.ExecuteDDL(sql)
-	if err != nil {
-		return nil, fmt.Errorf("修改表失败: %v", err)
+	if err := executeDDLDB(sql); err != nil {
+		return nil, err
 	}
 
 	return map[string]interface{}{
@@ -297,9 +291,8 @@ func handleDropTable(params map[string]interface{}) (interface{}, error) {
 
 	sql := buildDropTableSQL(tableName, getBool(params, "if_exists"))
 
-	err := database.ExecuteDDL(sql)
-	if err != nil {
-		return nil, fmt.Errorf("删除表失败: %v", err)
+	if err := executeDDLDB(sql); err != nil {
+		return nil, err
 	}
 
 	return map[string]interface{}{
@@ -321,8 +314,8 @@ func handleCreateIndex(params map[string]interface{}) (interface{}, error) {
 		return nil, err
 	}
 
-	if err := database.ExecuteDDL(sql); err != nil {
-		return nil, fmt.Errorf("创建索引失败: %v", err)
+	if err := executeDDLDB(sql); err != nil {
+		return nil, err
 	}
 
 	return map[string]interface{}{
@@ -340,9 +333,8 @@ func handleDropIndex(params map[string]interface{}) (interface{}, error) {
 	schema := getString(params, "schema")
 	sql := buildDropIndexSQL(indexName, schema, getBool(params, "if_exists"))
 
-	err := database.ExecuteDDL(sql)
-	if err != nil {
-		return nil, fmt.Errorf("删除索引失败: %v", err)
+	if err := executeDDLDB(sql); err != nil {
+		return nil, err
 	}
 
 	disp := indexName
@@ -361,9 +353,8 @@ func handleExecuteDDL(params map[string]interface{}) (interface{}, error) {
 		return nil, fmt.Errorf("参数 sql 是必需的")
 	}
 
-	err := database.ExecuteDDL(sql)
-	if err != nil {
-		return nil, fmt.Errorf("执行DDL失败: %v", err)
+	if err := executeDDLDB(sql); err != nil {
+		return nil, err
 	}
 
 	return map[string]interface{}{

@@ -194,13 +194,13 @@ func parseCSVImportOptions(params map[string]interface{}) (csvImportOptions, err
 
 func parseCSVImportFile(index int, params map[string]interface{}) (csvImportFile, error) {
 	file := csvImportFile{
-		CSVFile:     getString(params, "csv_file"),
-		Schema:      getString(params, "schema"),
-		Table:       getString(params, "table"),
-		NullIf:      getString(params, "null_if"),
-		Skip:        getInt(params, "skip", 0),
-		BadFile:     getString(params, "bad_file"),
-		LogFile:     getString(params, "log_file"),
+		CSVFile: getString(params, "csv_file"),
+		Schema:  getString(params, "schema"),
+		Table:   getString(params, "table"),
+		NullIf:  getString(params, "null_if"),
+		Skip:    getInt(params, "skip", 0),
+		BadFile: getString(params, "bad_file"),
+		LogFile: getString(params, "log_file"),
 	}
 
 	if file.CSVFile == "" {
@@ -573,8 +573,10 @@ func truncateString(value string, maxBytes int) string {
 
 func redactDMFLDROutput(output string) string {
 	cfg := config.LoadConfig()
-	if cfg.Password == "" {
-		return output
+	for _, secret := range []string{cfg.Password, os.Getenv("DM_PASSWORD")} {
+		if secret != "" {
+			output = strings.ReplaceAll(output, secret, "******")
+		}
 	}
-	return strings.ReplaceAll(output, cfg.Password, "******")
+	return output
 }

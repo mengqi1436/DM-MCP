@@ -14,31 +14,40 @@ var (
 	once sync.Once
 )
 
-// GetDB 获取数据库连接（单例模式）
 func GetDB() (*sql.DB, error) {
 	var err error
 	once.Do(func() {
 		cfg := config.LoadConfig()
+		if !cfg.IsValid() {
+			err = fmt.Errorf("数据库配置无效：请设置 DM_HOST, DM_PASSWORD, DM_DATABASE 环境变量")
+			return
+		}
 		dsn := cfg.GetDSN()
 		db, err = sql.Open("dm", dsn)
 		if err != nil {
 			return
 		}
-		// 配置连接池
 		db.SetMaxOpenConns(10)
 		db.SetMaxIdleConns(5)
+
+		if cfg.Schema != "" {
+			_, err = db.Exec("ALTER SESSION SET CURRENT_SCHEMA = " + cfg.Schema)
+			if err != nil {
+				fmt.Printf("警告: 设置默认 Schema 失败: %v\n", err)
+				err = nil
+			}
+		}
 	})
 	return db, err
 }
 
-// Query 执行查询语句，返回结果集
 func Query(sqlStr string, args ...interface{}) ([]map[string]interface{}, error) {
-	db, err := GetDB()
+	d, err := GetDB()
 	if err != nil {
 		return nil, fmt.Errorf("获取数据库连接失败: %w", err)
 	}
 
-	rows, err := db.Query(sqlStr, args...)
+	rows, err := d.Query(sqlStr, args...)
 	if err != nil {
 		return nil, fmt.Errorf("执行查询失败: %w", err)
 	}
@@ -47,14 +56,13 @@ func Query(sqlStr string, args ...interface{}) ([]map[string]interface{}, error)
 	return scanRows(rows)
 }
 
-// Execute 执行DML语句（INSERT/UPDATE/DELETE）
 func Execute(sqlStr string, args ...interface{}) (int64, error) {
-	db, err := GetDB()
+	d, err := GetDB()
 	if err != nil {
 		return 0, fmt.Errorf("获取数据库连接失败: %w", err)
 	}
 
-	result, err := db.Exec(sqlStr, args...)
+	result, err := d.Exec(sqlStr, args...)
 	if err != nil {
 		return 0, fmt.Errorf("执行语句失败: %w", err)
 	}
@@ -67,14 +75,13 @@ func Execute(sqlStr string, args ...interface{}) (int64, error) {
 	return affected, nil
 }
 
-// ExecuteDDL 执行DDL语句
 func ExecuteDDL(sqlStr string) error {
-	db, err := GetDB()
+	d, err := GetDB()
 	if err != nil {
 		return fmt.Errorf("获取数据库连接失败: %w", err)
 	}
 
-	_, err = db.Exec(sqlStr)
+	_, err = d.Exec(sqlStr)
 	if err != nil {
 		return fmt.Errorf("执行DDL失败: %w", err)
 	}
@@ -82,14 +89,13 @@ func ExecuteDDL(sqlStr string) error {
 	return nil
 }
 
-// ExecuteTransaction 在事务中执行多条语句
 func ExecuteTransaction(statements []string) error {
-	db, err := GetDB()
+	d, err := GetDB()
 	if err != nil {
 		return fmt.Errorf("获取数据库连接失败: %w", err)
 	}
 
-	tx, err := db.Begin()
+	tx, err := d.Begin()
 	if err != nil {
 		return fmt.Errorf("开启事务失败: %w", err)
 	}
@@ -108,7 +114,6 @@ func ExecuteTransaction(statements []string) error {
 	return nil
 }
 
-// scanRows 将查询结果转换为 map 切片
 func scanRows(rows *sql.Rows) ([]map[string]interface{}, error) {
 	columns, err := rows.Columns()
 	if err != nil {
@@ -143,7 +148,6 @@ func scanRows(rows *sql.Rows) ([]map[string]interface{}, error) {
 	return results, rows.Err()
 }
 
-// Close 关闭数据库连接
 func Close() error {
 	if db != nil {
 		return db.Close()

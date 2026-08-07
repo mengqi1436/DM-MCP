@@ -1,7 +1,12 @@
 package tools
 
+import (
+	"dm-mcp/database"
+	"os"
+	"strconv"
+	"strings"
+)
 
-// getString 从参数中获取字符串值
 func getString(params map[string]interface{}, key string) string {
 	if v, ok := params[key].(string); ok {
 		return v
@@ -9,7 +14,6 @@ func getString(params map[string]interface{}, key string) string {
 	return ""
 }
 
-// getInt 从参数中获取整数值
 func getInt(params map[string]interface{}, key string, defaultValue int) int {
 	if v, ok := params[key].(float64); ok {
 		return int(v)
@@ -17,10 +21,15 @@ func getInt(params map[string]interface{}, key string, defaultValue int) int {
 	if v, ok := params[key].(int); ok {
 		return v
 	}
+	if v, ok := params[key].(string); ok {
+		n, err := strconv.Atoi(strings.TrimSpace(v))
+		if err == nil {
+			return n
+		}
+	}
 	return defaultValue
 }
 
-// getBool 从参数中获取布尔值
 func getBool(params map[string]interface{}, key string) bool {
 	if v, ok := params[key].(bool); ok {
 		return v
@@ -28,7 +37,6 @@ func getBool(params map[string]interface{}, key string) bool {
 	return false
 }
 
-// getBoolOrDefault 从参数中获取布尔值，未设置时返回 defaultValue
 func getBoolOrDefault(params map[string]interface{}, key string, defaultValue bool) bool {
 	if _, ok := params[key]; !ok {
 		return defaultValue
@@ -36,5 +44,25 @@ func getBoolOrDefault(params map[string]interface{}, key string, defaultValue bo
 	return getBool(params, key)
 }
 
+func getEnvOrDefault(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
+}
 
+func queryDB(sqlStr string, args ...interface{}) ([]map[string]interface{}, error) {
+	return database.Query(sqlStr, args...)
+}
 
+func executeDB(sqlStr string, args ...interface{}) (int64, error) {
+	return database.Execute(sqlStr, args...)
+}
+
+func executeDDLDB(sqlStr string) error {
+	return database.ExecuteDDL(sqlStr)
+}
+
+func executeTransactionDB(statements []string) error {
+	return database.ExecuteTransaction(statements)
+}

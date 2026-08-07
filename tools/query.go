@@ -1,7 +1,6 @@
 package tools
 
 import (
-	"dm-mcp/database"
 	"fmt"
 	"strings"
 )
@@ -11,7 +10,6 @@ func init() {
 }
 
 func registerQueryTools() {
-	// query - 执行SQL查询
 	RegisterTool(ToolInfo{
 		Name:        "query",
 		Category:    "query",
@@ -19,7 +17,6 @@ func registerQueryTools() {
 		Params:      []string{"sql", "params"},
 	}, handleQuery)
 
-	// query_one - 查询单条记录
 	RegisterTool(ToolInfo{
 		Name:        "query_one",
 		Category:    "query",
@@ -27,7 +24,6 @@ func registerQueryTools() {
 		Params:      []string{"sql", "params"},
 	}, handleQueryOne)
 
-	// query_paginated - 分页查询
 	RegisterTool(ToolInfo{
 		Name:        "query_paginated",
 		Category:    "query",
@@ -35,7 +31,6 @@ func registerQueryTools() {
 		Params:      []string{"sql", "page", "page_size"},
 	}, handleQueryPaginated)
 
-	// count - 统计记录数
 	RegisterTool(ToolInfo{
 		Name:        "count",
 		Category:    "query",
@@ -50,9 +45,9 @@ func handleQuery(params map[string]interface{}) (interface{}, error) {
 		return nil, fmt.Errorf("参数 sql 是必需的")
 	}
 
-	results, err := database.Query(sql)
+	results, err := queryDB(sql)
 	if err != nil {
-		return nil, fmt.Errorf("查询失败: %v", err)
+		return nil, err
 	}
 
 	return map[string]interface{}{
@@ -67,9 +62,9 @@ func handleQueryOne(params map[string]interface{}) (interface{}, error) {
 		return nil, fmt.Errorf("参数 sql 是必需的")
 	}
 
-	results, err := database.Query(sql)
+	results, err := queryDB(sql)
 	if err != nil {
-		return nil, fmt.Errorf("查询失败: %v", err)
+		return nil, err
 	}
 
 	if len(results) == 0 {
@@ -103,14 +98,13 @@ func handleQueryPaginated(params map[string]interface{}) (interface{}, error) {
 
 	offset := (page - 1) * pageSize
 
-	// 达梦数据库分页语法
 	paginatedSQL := fmt.Sprintf("%s LIMIT %d OFFSET %d",
 		strings.TrimSuffix(strings.TrimSpace(sql), ";"),
 		pageSize, offset)
 
-	results, err := database.Query(paginatedSQL)
+	results, err := queryDB(paginatedSQL)
 	if err != nil {
-		return nil, fmt.Errorf("分页查询失败: %v", err)
+		return nil, err
 	}
 
 	return map[string]interface{}{
@@ -134,9 +128,9 @@ func handleCount(params map[string]interface{}) (interface{}, error) {
 		sql += " WHERE " + where
 	}
 
-	results, err := database.Query(sql)
+	results, err := queryDB(sql)
 	if err != nil {
-		return nil, fmt.Errorf("统计失败: %v", err)
+		return nil, err
 	}
 
 	if len(results) > 0 {

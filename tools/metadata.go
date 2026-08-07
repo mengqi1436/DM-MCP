@@ -1,7 +1,6 @@
 package tools
 
 import (
-	"dm-mcp/database"
 	"fmt"
 	"strings"
 )
@@ -11,7 +10,6 @@ func init() {
 }
 
 func registerMetadataTools() {
-	// list_databases - 列出所有数据库
 	RegisterTool(ToolInfo{
 		Name:        "list_databases",
 		Category:    "metadata",
@@ -19,7 +17,6 @@ func registerMetadataTools() {
 		Params:      []string{},
 	}, handleListDatabases)
 
-	// list_schemas - 列出所有模式
 	RegisterTool(ToolInfo{
 		Name:        "list_schemas",
 		Category:    "metadata",
@@ -27,7 +24,6 @@ func registerMetadataTools() {
 		Params:      []string{},
 	}, handleListSchemas)
 
-	// list_tables - 列出表
 	RegisterTool(ToolInfo{
 		Name:        "list_tables",
 		Category:    "metadata",
@@ -35,7 +31,6 @@ func registerMetadataTools() {
 		Params:      []string{"schema"},
 	}, handleListTables)
 
-	// list_views - 列出视图
 	RegisterTool(ToolInfo{
 		Name:        "list_views",
 		Category:    "metadata",
@@ -43,7 +38,6 @@ func registerMetadataTools() {
 		Params:      []string{"schema"},
 	}, handleListViews)
 
-	// describe_table - 获取表结构
 	RegisterTool(ToolInfo{
 		Name:        "describe_table",
 		Category:    "metadata",
@@ -51,7 +45,6 @@ func registerMetadataTools() {
 		Params:      []string{"table_name"},
 	}, handleDescribeTable)
 
-	// list_indexes - 列出表的索引
 	RegisterTool(ToolInfo{
 		Name:        "list_indexes",
 		Category:    "metadata",
@@ -76,9 +69,9 @@ func registerMetadataTools() {
 
 func handleListDatabases(params map[string]interface{}) (interface{}, error) {
 	sql := "SELECT NAME FROM V$DATABASE"
-	results, err := database.Query(sql)
+	results, err := queryDB(sql)
 	if err != nil {
-		return nil, fmt.Errorf("查询数据库列表失败: %v", err)
+		return nil, err
 	}
 
 	return map[string]interface{}{
@@ -89,9 +82,9 @@ func handleListDatabases(params map[string]interface{}) (interface{}, error) {
 
 func handleListSchemas(params map[string]interface{}) (interface{}, error) {
 	sql := "SELECT USERNAME AS SCHEMA_NAME FROM DBA_USERS ORDER BY USERNAME"
-	results, err := database.Query(sql)
+	results, err := queryDB(sql)
 	if err != nil {
-		return nil, fmt.Errorf("查询模式列表失败: %v", err)
+		return nil, err
 	}
 
 	return map[string]interface{}{
@@ -102,6 +95,9 @@ func handleListSchemas(params map[string]interface{}) (interface{}, error) {
 
 func handleListTables(params map[string]interface{}) (interface{}, error) {
 	schema := getString(params, "schema")
+	if schema == "" {
+		schema = getEnvOrDefault("DM_SCHEMA", "")
+	}
 
 	var sql string
 	if schema != "" {
@@ -110,9 +106,9 @@ func handleListTables(params map[string]interface{}) (interface{}, error) {
 		sql = "SELECT TABLE_NAME FROM USER_TABLES ORDER BY TABLE_NAME"
 	}
 
-	results, err := database.Query(sql)
+	results, err := queryDB(sql)
 	if err != nil {
-		return nil, fmt.Errorf("查询表列表失败: %v", err)
+		return nil, err
 	}
 
 	return map[string]interface{}{
@@ -123,6 +119,9 @@ func handleListTables(params map[string]interface{}) (interface{}, error) {
 
 func handleListViews(params map[string]interface{}) (interface{}, error) {
 	schema := getString(params, "schema")
+	if schema == "" {
+		schema = getEnvOrDefault("DM_SCHEMA", "")
+	}
 
 	var sql string
 	if schema != "" {
@@ -131,9 +130,9 @@ func handleListViews(params map[string]interface{}) (interface{}, error) {
 		sql = "SELECT VIEW_NAME FROM USER_VIEWS ORDER BY VIEW_NAME"
 	}
 
-	results, err := database.Query(sql)
+	results, err := queryDB(sql)
 	if err != nil {
-		return nil, fmt.Errorf("查询视图列表失败: %v", err)
+		return nil, err
 	}
 
 	return map[string]interface{}{
@@ -149,7 +148,7 @@ func handleDescribeTable(params map[string]interface{}) (interface{}, error) {
 	}
 
 	sql := fmt.Sprintf(`
-		SELECT 
+		SELECT
 			COLUMN_NAME,
 			DATA_TYPE,
 			DATA_LENGTH,
@@ -157,13 +156,13 @@ func handleDescribeTable(params map[string]interface{}) (interface{}, error) {
 			DATA_SCALE,
 			NULLABLE,
 			DATA_DEFAULT
-		FROM USER_TAB_COLUMNS 
+		FROM USER_TAB_COLUMNS
 		WHERE TABLE_NAME = '%s'
 		ORDER BY COLUMN_ID`, tableName)
 
-	results, err := database.Query(sql)
+	results, err := queryDB(sql)
 	if err != nil {
-		return nil, fmt.Errorf("获取表结构失败: %v", err)
+		return nil, err
 	}
 
 	if len(results) == 0 {
@@ -184,18 +183,18 @@ func handleListIndexes(params map[string]interface{}) (interface{}, error) {
 	}
 
 	sql := fmt.Sprintf(`
-		SELECT 
+		SELECT
 			INDEX_NAME,
 			INDEX_TYPE,
 			UNIQUENESS,
 			STATUS
-		FROM USER_INDEXES 
+		FROM USER_INDEXES
 		WHERE TABLE_NAME = '%s'
 		ORDER BY INDEX_NAME`, tableName)
 
-	results, err := database.Query(sql)
+	results, err := queryDB(sql)
 	if err != nil {
-		return nil, fmt.Errorf("获取索引列表失败: %v", err)
+		return nil, err
 	}
 
 	return map[string]interface{}{
@@ -222,42 +221,42 @@ func handleSearchIndexes(params map[string]interface{}) (interface{}, error) {
 		match = "prefix"
 	}
 
-	var sql string
+	var sqlStr string
 	args := []interface{}{}
 
 	if ownerScope == "USER" {
-		sql = `SELECT INDEX_NAME, TABLE_NAME, INDEX_TYPE, UNIQUENESS, STATUS FROM USER_INDEXES WHERE 1=1`
+		sqlStr = `SELECT INDEX_NAME, TABLE_NAME, INDEX_TYPE, UNIQUENESS, STATUS FROM USER_INDEXES WHERE 1=1`
 		if tableName != "" {
-			sql += fmt.Sprintf(" AND TABLE_NAME = :%d", len(args)+1)
+			sqlStr += fmt.Sprintf(" AND TABLE_NAME = :%d", len(args)+1)
 			args = append(args, tableName)
 		}
 		var err error
-		sql, args, err = appendIndexNameSQL(sql, args, "INDEX_NAME", indexName, match)
+		sqlStr, args, err = appendIndexNameSQL(sqlStr, args, "INDEX_NAME", indexName, match)
 		if err != nil {
 			return nil, err
 		}
-		sql += " ORDER BY INDEX_NAME"
+		sqlStr += " ORDER BY INDEX_NAME"
 	} else {
-		sql = `SELECT OWNER AS INDEX_OWNER, INDEX_NAME, TABLE_NAME, TABLE_OWNER, INDEX_TYPE, UNIQUENESS, STATUS FROM ALL_INDEXES WHERE 1=1`
+		sqlStr = `SELECT OWNER AS INDEX_OWNER, INDEX_NAME, TABLE_NAME, TABLE_OWNER, INDEX_TYPE, UNIQUENESS, STATUS FROM ALL_INDEXES WHERE 1=1`
 		if schema != "" {
-			sql += fmt.Sprintf(" AND OWNER = :%d", len(args)+1)
+			sqlStr += fmt.Sprintf(" AND OWNER = :%d", len(args)+1)
 			args = append(args, schema)
 		}
 		if tableName != "" {
-			sql += fmt.Sprintf(" AND TABLE_NAME = :%d", len(args)+1)
+			sqlStr += fmt.Sprintf(" AND TABLE_NAME = :%d", len(args)+1)
 			args = append(args, tableName)
 		}
 		var err error
-		sql, args, err = appendIndexNameSQL(sql, args, "INDEX_NAME", indexName, match)
+		sqlStr, args, err = appendIndexNameSQL(sqlStr, args, "INDEX_NAME", indexName, match)
 		if err != nil {
 			return nil, err
 		}
-		sql += " ORDER BY OWNER, INDEX_NAME"
+		sqlStr += " ORDER BY OWNER, INDEX_NAME"
 	}
 
-	results, err := database.Query(sql, args...)
+	results, err := queryDB(sqlStr, args...)
 	if err != nil {
-		return nil, fmt.Errorf("search_indexes 查询失败: %v（若 ALL_* 无权限，请改用 owner_scope=USER）", err)
+		return nil, err
 	}
 
 	return map[string]interface{}{
@@ -318,9 +317,9 @@ func handleDescribeIndex(params map[string]interface{}) (interface{}, error) {
 			metaSQL = `SELECT INDEX_NAME, TABLE_NAME, INDEX_TYPE, UNIQUENESS, STATUS FROM USER_INDEXES WHERE INDEX_NAME = :1 AND TABLE_NAME = :2`
 			args = []interface{}{indexName, tableName}
 		}
-		meta, err = database.Query(metaSQL, args...)
+		meta, err = queryDB(metaSQL, args...)
 		if err != nil {
-			return nil, fmt.Errorf("查询索引元数据失败: %v", err)
+			return nil, err
 		}
 		if len(meta) == 0 {
 			return nil, fmt.Errorf("未找到索引 %s", indexName)
@@ -338,9 +337,9 @@ func handleDescribeIndex(params map[string]interface{}) (interface{}, error) {
 			colSQL = `SELECT COLUMN_NAME, COLUMN_POSITION FROM USER_IND_COLUMNS WHERE INDEX_NAME = :1 AND TABLE_NAME = :2 ORDER BY COLUMN_POSITION`
 			cargs = []interface{}{indexName, tableName}
 		}
-		cols, err = database.Query(colSQL, cargs...)
+		cols, err = queryDB(colSQL, cargs...)
 		if err != nil {
-			return nil, fmt.Errorf("查询索引列失败: %v", err)
+			return nil, err
 		}
 	} else {
 		var metaSQL string
@@ -352,9 +351,9 @@ func handleDescribeIndex(params map[string]interface{}) (interface{}, error) {
 			metaSQL = `SELECT OWNER AS INDEX_OWNER, INDEX_NAME, TABLE_NAME, TABLE_OWNER, INDEX_TYPE, UNIQUENESS, STATUS FROM ALL_INDEXES WHERE OWNER = :1 AND INDEX_NAME = :2 AND TABLE_NAME = :3`
 			args = []interface{}{schema, indexName, tableName}
 		}
-		meta, err = database.Query(metaSQL, args...)
+		meta, err = queryDB(metaSQL, args...)
 		if err != nil {
-			return nil, fmt.Errorf("查询索引元数据失败: %v", err)
+			return nil, err
 		}
 		if len(meta) == 0 {
 			return nil, fmt.Errorf("未找到索引 %s（属主 %s）", indexName, schema)
@@ -369,17 +368,17 @@ func handleDescribeIndex(params map[string]interface{}) (interface{}, error) {
 			colSQL = `SELECT COLUMN_NAME, COLUMN_POSITION FROM ALL_IND_COLUMNS WHERE INDEX_OWNER = :1 AND INDEX_NAME = :2 AND TABLE_NAME = :3 ORDER BY COLUMN_POSITION`
 			cargs = []interface{}{schema, indexName, tableName}
 		}
-		cols, err = database.Query(colSQL, cargs...)
+		cols, err = queryDB(colSQL, cargs...)
 		if err != nil {
-			return nil, fmt.Errorf("查询索引列失败: %v（请确认 ALL_IND_COLUMNS 列名与权限）", err)
+			return nil, err
 		}
 	}
 
 	return map[string]interface{}{
-		"index_name": indexName,
-		"owner_scope": ownerScope,
-		"meta":        meta[0],
-		"columns":     cols,
+		"index_name":   indexName,
+		"owner_scope":  ownerScope,
+		"meta":         meta[0],
+		"columns":      cols,
 		"column_count": len(cols),
 	}, nil
 }

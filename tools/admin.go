@@ -1,7 +1,6 @@
 package tools
 
 import (
-	"dm-mcp/database"
 	"fmt"
 )
 
@@ -10,7 +9,6 @@ func init() {
 }
 
 func registerAdminTools() {
-	// list_users - 列出所有用户
 	RegisterTool(ToolInfo{
 		Name:        "list_users",
 		Category:    "admin",
@@ -18,7 +16,6 @@ func registerAdminTools() {
 		Params:      []string{},
 	}, handleListUsers)
 
-	// table_statistics - 获取表统计信息
 	RegisterTool(ToolInfo{
 		Name:        "table_statistics",
 		Category:    "admin",
@@ -26,7 +23,6 @@ func registerAdminTools() {
 		Params:      []string{"table_name"},
 	}, handleTableStatistics)
 
-	// database_info - 获取数据库信息
 	RegisterTool(ToolInfo{
 		Name:        "database_info",
 		Category:    "admin",
@@ -37,17 +33,17 @@ func registerAdminTools() {
 
 func handleListUsers(params map[string]interface{}) (interface{}, error) {
 	sql := `
-		SELECT 
+		SELECT
 			USERNAME,
 			ACCOUNT_STATUS,
 			CREATED,
 			DEFAULT_TABLESPACE
-		FROM DBA_USERS 
+		FROM DBA_USERS
 		ORDER BY USERNAME`
 
-	results, err := database.Query(sql)
+	results, err := queryDB(sql)
 	if err != nil {
-		return nil, fmt.Errorf("查询用户列表失败: %v", err)
+		return nil, err
 	}
 
 	return map[string]interface{}{
@@ -63,21 +59,21 @@ func handleTableStatistics(params map[string]interface{}) (interface{}, error) {
 	}
 
 	countSQL := fmt.Sprintf("SELECT COUNT(*) AS ROW_COUNT FROM %s", tableName)
-	countResults, err := database.Query(countSQL)
+	countResults, err := queryDB(countSQL)
 	if err != nil {
-		return nil, fmt.Errorf("获取表统计信息失败: %v", err)
+		return nil, err
 	}
 
 	statsSQL := fmt.Sprintf(`
-		SELECT 
+		SELECT
 			TABLE_NAME,
 			NUM_ROWS,
 			BLOCKS,
 			LAST_ANALYZED
-		FROM USER_TABLES 
+		FROM USER_TABLES
 		WHERE TABLE_NAME = '%s'`, tableName)
 
-	statsResults, _ := database.Query(statsSQL)
+	statsResults, _ := queryDB(statsSQL)
 
 	result := map[string]interface{}{
 		"table_name": tableName,
@@ -100,23 +96,23 @@ func handleDatabaseInfo(params map[string]interface{}) (interface{}, error) {
 	result := map[string]interface{}{}
 
 	versionSQL := "SELECT * FROM V$VERSION"
-	versionResults, err := database.Query(versionSQL)
+	versionResults, err := queryDB(versionSQL)
 	if err != nil {
 		versionSQL = "SELECT BANNER FROM V$VERSION"
-		versionResults, _ = database.Query(versionSQL)
+		versionResults, _ = queryDB(versionSQL)
 	}
 	if len(versionResults) > 0 {
 		result["version"] = versionResults
 	}
 
 	instanceSQL := "SELECT * FROM V$INSTANCE"
-	instanceResults, _ := database.Query(instanceSQL)
+	instanceResults, _ := queryDB(instanceSQL)
 	if len(instanceResults) > 0 {
 		result["instance"] = instanceResults
 	}
 
 	dbSQL := "SELECT * FROM V$DATABASE"
-	dbResults, _ := database.Query(dbSQL)
+	dbResults, _ := queryDB(dbSQL)
 	if len(dbResults) > 0 {
 		result["database"] = dbResults
 	}

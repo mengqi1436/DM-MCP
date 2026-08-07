@@ -1,7 +1,6 @@
 package tools
 
 import (
-	"dm-mcp/database"
 	"fmt"
 )
 
@@ -10,15 +9,13 @@ func init() {
 }
 
 func registerAdvancedTools() {
-	// execute_transaction - 事务执行多条语句
 	RegisterTool(ToolInfo{
 		Name:        "execute_transaction",
 		Category:    "advanced",
-		Description: "事务执行多条SQL语句(全成功提交/任意失败回滚)。参数: statements-SQL语句数组。注意：若包含 DDL，达梦可能隐式提交，语义未必为严格单事务原子；批量 DDL 也可用 ddl/batch_execute_ddl 或 batch_* 工具（推荐 atomic=false）。",
+		Description: "事务执行多条SQL语句(全成功提交/任意失败回滚)。参数: statements-SQL语句数组。注意：若包含 DDL，达梦可能隐式提交，语义未必为严格单事务原子。",
 		Params:      []string{"statements"},
 	}, handleTransaction)
 
-	// call_procedure - 调用存储过程
 	RegisterTool(ToolInfo{
 		Name:        "call_procedure",
 		Category:    "advanced",
@@ -26,7 +23,6 @@ func registerAdvancedTools() {
 		Params:      []string{"procedure_name", "params"},
 	}, handleCallProcedure)
 
-	// call_function - 调用函数
 	RegisterTool(ToolInfo{
 		Name:        "call_function",
 		Category:    "advanced",
@@ -34,7 +30,6 @@ func registerAdvancedTools() {
 		Params:      []string{"function_name", "params"},
 	}, handleCallFunction)
 
-	// explain_plan - 分析执行计划
 	RegisterTool(ToolInfo{
 		Name:        "explain_plan",
 		Category:    "advanced",
@@ -54,9 +49,9 @@ func handleTransaction(params map[string]interface{}) (interface{}, error) {
 		stmts[i] = fmt.Sprintf("%v", stmt)
 	}
 
-	err := database.ExecuteTransaction(stmts)
+	err := executeTransactionDB(stmts)
 	if err != nil {
-		return nil, fmt.Errorf("事务执行失败（已回滚）: %v", err)
+		return nil, err
 	}
 
 	return map[string]interface{}{
@@ -86,9 +81,9 @@ func handleCallProcedure(params map[string]interface{}) (interface{}, error) {
 		sql += "()"
 	}
 
-	err := database.ExecuteDDL(sql)
+	err := executeDDLDB(sql)
 	if err != nil {
-		return nil, fmt.Errorf("调用存储过程失败: %v", err)
+		return nil, err
 	}
 
 	return map[string]interface{}{
@@ -118,9 +113,9 @@ func handleCallFunction(params map[string]interface{}) (interface{}, error) {
 	}
 	sql += " AS RESULT FROM DUAL"
 
-	results, err := database.Query(sql)
+	results, err := queryDB(sql)
 	if err != nil {
-		return nil, fmt.Errorf("调用函数失败: %v", err)
+		return nil, err
 	}
 
 	if len(results) > 0 {
@@ -145,9 +140,9 @@ func handleExplainPlan(params map[string]interface{}) (interface{}, error) {
 
 	explainSQL := fmt.Sprintf("EXPLAIN %s", sql)
 
-	results, err := database.Query(explainSQL)
+	results, err := queryDB(explainSQL)
 	if err != nil {
-		return nil, fmt.Errorf("分析执行计划失败: %v", err)
+		return nil, err
 	}
 
 	return map[string]interface{}{

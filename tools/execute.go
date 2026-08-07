@@ -1,7 +1,6 @@
 package tools
 
 import (
-	"dm-mcp/database"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -12,7 +11,6 @@ func init() {
 }
 
 func registerExecuteTools() {
-	// insert - 插入数据
 	RegisterTool(ToolInfo{
 		Name:        "insert",
 		Category:    "dml",
@@ -20,7 +18,6 @@ func registerExecuteTools() {
 		Params:      []string{"table", "data"},
 	}, handleInsert)
 
-	// insert_batch - 批量插入
 	RegisterTool(ToolInfo{
 		Name:        "insert_batch",
 		Category:    "dml",
@@ -28,7 +25,6 @@ func registerExecuteTools() {
 		Params:      []string{"table", "rows"},
 	}, handleInsertBatch)
 
-	// update - 更新数据
 	RegisterTool(ToolInfo{
 		Name:        "update",
 		Category:    "dml",
@@ -36,7 +32,6 @@ func registerExecuteTools() {
 		Params:      []string{"table", "data", "where"},
 	}, handleUpdate)
 
-	// delete - 删除数据
 	RegisterTool(ToolInfo{
 		Name:        "delete",
 		Category:    "dml",
@@ -73,9 +68,9 @@ func handleInsert(params map[string]interface{}) (interface{}, error) {
 		strings.Join(columns, ", "),
 		strings.Join(placeholders, ", "))
 
-	affected, err := database.Execute(sql, values...)
+	affected, err := executeDB(sql, values...)
 	if err != nil {
-		return nil, fmt.Errorf("插入失败: %v", err)
+		return nil, err
 	}
 
 	return map[string]interface{}{
@@ -95,7 +90,6 @@ func handleInsertBatch(params map[string]interface{}) (interface{}, error) {
 		return nil, fmt.Errorf("参数 rows 是必需的且不能为空")
 	}
 
-	// 使用事务批量插入
 	statements := make([]string, len(rows))
 	for i, row := range rows {
 		rowMap, ok := row.(map[string]interface{})
@@ -118,9 +112,9 @@ func handleInsertBatch(params map[string]interface{}) (interface{}, error) {
 			strings.Join(valuesStr, ", "))
 	}
 
-	err := database.ExecuteTransaction(statements)
+	err := executeTransactionDB(statements)
 	if err != nil {
-		return nil, fmt.Errorf("批量插入失败: %v", err)
+		return nil, err
 	}
 
 	return map[string]interface{}{
@@ -160,9 +154,9 @@ func handleUpdate(params map[string]interface{}) (interface{}, error) {
 		strings.Join(setClauses, ", "),
 		where)
 
-	affected, err := database.Execute(sql, values...)
+	affected, err := executeDB(sql, values...)
 	if err != nil {
-		return nil, fmt.Errorf("更新失败: %v", err)
+		return nil, err
 	}
 
 	return map[string]interface{}{
@@ -184,9 +178,9 @@ func handleDelete(params map[string]interface{}) (interface{}, error) {
 
 	sql := fmt.Sprintf("DELETE FROM %s WHERE %s", table, where)
 
-	affected, err := database.Execute(sql)
+	affected, err := executeDB(sql)
 	if err != nil {
-		return nil, fmt.Errorf("删除失败: %v", err)
+		return nil, err
 	}
 
 	return map[string]interface{}{
