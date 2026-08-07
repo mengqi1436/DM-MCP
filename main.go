@@ -9,12 +9,15 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
+// version 发布版本号，CI 构建时通过 -ldflags "-X main.version=<tag>" 注入
+var version = "2.0.0"
+
 func main() {
 	defer database.Close()
 
 	s := server.NewMCPServer(
 		"dm-database-mcp",
-		"2.0.0",
+		version,
 		server.WithToolCapabilities(true),
 	)
 

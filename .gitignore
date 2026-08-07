@@ -28,6 +28,9 @@ go.work.sum
 *.swp
 *.swo
 
+# ZCode harness runtime
+.zcode/
+
 # OS
 .DS_Store
 Thumbs.db

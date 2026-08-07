@@ -1,0 +1,60 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build & Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      # ---- Windows amd64 ----
+      - name: Build Windows amd64
+        env:
+          GOOS: windows
+          GOARCH: amd64
+          CGO_ENABLED: "0"
+        run: go build -trimpath -ldflags "-s -w -X main.version=${GITHUB_REF_NAME}" -o dist/dm-mcp-windows-amd64/dm-mcp.exe .
+
+      - name: Package Windows amd64
+        run: |
+          cp -r dmfldr-bin dist/dm-mcp-windows-amd64/
+          cp README.md TOOLS.md dist/dm-mcp-windows-amd64/
+          cd dist && zip -r dm-mcp-windows-amd64.zip dm-mcp-windows-amd64
+
+      # ---- Linux amd64 ----
+      - name: Build Linux amd64
+        env:
+          GOOS: linux
+          GOARCH: amd64
+          CGO_ENABLED: "0"
+        run: go build -trimpath -ldflags "-s -w -X main.version=${GITHUB_REF_NAME}" -o dist/dm-mcp-linux-amd64/dm-mcp .
+
+      - name: Package Linux amd64
+        run: |
+          cp README.md TOOLS.md dist/dm-mcp-linux-amd64/
+          cd dist && tar -czf dm-mcp-linux-amd64.tar.gz dm-mcp-linux-amd64
+
+      # ---- Publish ----
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.zip
+            dist/*.tar.gz
+          generate_release_notes: true
