@@ -87,6 +87,7 @@ jobs:
         run: node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('npm/package.json'));p.version=process.env.GITHUB_REF_NAME.replace(/^v/,'');fs.writeFileSync('npm/package.json',JSON.stringify(p,null,2)+'\n')"
 
       - name: Publish to npm
-        run: npm publish npm/
+        # scoped 包必须显式 --access public，否则默认发布为私有（免费组织无法发布私有包）
+        run: npm publish npm/ --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
