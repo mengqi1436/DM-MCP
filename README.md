@@ -1,139 +1,104 @@
-# 达梦数据库 MCP 工具
+# 达梦数据库 MCP v2（高性能版）
 
-一个基于 Go 语言和 MCP（Model Context Protocol）开发的达梦数据库操作工具服务器。
+基于 **MCP 2026-07-28 无状态规范** 的达梦数据库（DM8）操作工具服务器，Go 实现，性能优先。详细设计见 [DESIGN.md](DESIGN.md)。
 
-## 架构设计
+## 特性
 
-**单实例单连接**：每个 MCP 进程只连接一个达梦数据库。需要操作多个数据库时，由 mcphub 启动多个 MCP 实例，每个实例配置不同的环境变量。
-
-## 功能特性
-
-共 **82 个工具**，分 11 类。详见 [TOOLS.md](TOOLS.md)。
-
-| 类别 | 数量 | 说明 |
-|------|------|------|
-| control | 2 | 工具发现和统一执行入口 |
-| query | 5 | SELECT 查询、分页、统计、批量查询 |
-| dml | 7 | 增删改、批量操作、MERGE/UPSERT |
-| ddl | 14 | 表/索引/视图/序列的创建删除、批量DDL |
-| metadata | 18 | 库/模式/表/视图/序列/同义词/存储过程/函数/包/触发器/约束/分区/DDL导出 |
-| admin | 12 | 用户/角色/权限/表空间管理、统计信息 |
-| advanced | 6 | 事务、存储过程调用、执行计划、通用SQL |
-| monitoring | 6 | 活跃会话、锁、慢查询、表空间使用率、实例参数、内存 |
-| backup | 4 | 逻辑导出导入(dexp/dimp)、物理备份恢复(dmrman) |
-| import | 2 | DMFLDR批量CSV导入、表数据导出 |
-| instance | 6 | dminit初始化、服务启停、实例删除 |
+- **双传输**：streamable HTTP（无状态，2026-07-28 规范）为主 + stdio 兼容，`-transport` 切换
+- **82 个工具**：查询、DML、DDL、元数据、管理、监控、备份、CSV 导入、实例管理
+- **性能优化**：多行 VALUES 批量插入（10k 行比 v1 快 7.6x）、连接池调优、预编译语句缓存、查询行数上限保护
+- **官方 SDK**：`modelcontextprotocol/go-sdk v1.7.0`（原生支持无状态规范）
 
 ## 环境要求
 
-- Go 1.21+
+- Go 1.21+（**本机需以 `GOARCH=amd64` 编译**，达梦驱动在 32 位 int 下无法编译）
 - 达梦数据库 8.x
-- 达梦 Go 驱动（`gitee.com/chunanyong/dm`）
+- 驱动：`gitee.com/chunanyong/dm`（go mod 自动拉取）
 
-## 安装
+## 构建
+
+```powershell
+$env:GOARCH="amd64"; $env:CGO_ENABLED="0"
+go build -o dm-mcp.exe .
+```
+
+## 配置（环境变量）
+
+| 变量 | 必填 | 默认 | 说明 |
+|---|---|---|---|
+| `DM_HOST` | 否 | `localhost` | 主机 |
+| `DM_PORT` | 否 | `5236` | 端口 |
+| `DM_USER` | 否 | `SYSDBA` | 用户 |
+| `DM_PASSWORD` | **是** | — | 密码 |
+| `DM_DATABASE` | 否 | `DAMENG` | 数据库名（展示用） |
+| `DM_SCHEMA` | 否 | — | 默认 Schema（驱动自动 set schema） |
+| `DM_MAX_OPEN_CONNS` | 否 | `16` | 连接池上限 |
+| `DM_MAX_IDLE_CONNS` | 否 | `16` | 空闲连接数 |
+| `DM_CONN_MAX_LIFETIME` | 否 | `30m` | 连接存活时长 |
+| `DM_CONN_MAX_IDLE_TIME` | 否 | `5m` | 空闲回收时长 |
+| `DM_QUERY_TIMEOUT` | 否 | `30s` | 单请求超时 |
+| `DM_BATCH_SIZE` | 否 | `500` | 批量写入分块 |
+| `DM_QUERY_LIMIT` | 否 | `1000` | 查询默认行数上限 |
+| `DM_DRIVER_PARAMS` | 否 | — | 驱动属性透传（如 `rowPrefetch=100`） |
+| `DM_FLDR_PATH` | 否 | `dmfldr` | dmfldr 路径（CSV 导入） |
+| `DM_EXP_PATH` | 否 | `dexp` | dexp 路径（逻辑导出） |
+| `DM_IMP_PATH` | 否 | `dimp` | dimp 路径（逻辑导入） |
+| `DM_RMAN_PATH` | 否 | `dmrman` | dmrman 路径（物理备份） |
+
+本机示例：
+
+```powershell
+$env:DM_HOST="localhost"; $env:DM_PORT="5236"; $env:DM_USER="SYSDBA"
+$env:DM_PASSWORD="你的密码"; $env:DM_DATABASE="DAMENG"
+```
+
+## 运行
+
+### HTTP 模式（默认，2026-07-28 无状态）
+
+```powershell
+dm-mcp.exe -transport=http -addr=:8090
+```
+
+调用示例（JSON-RPC over HTTP，无需 session）：
 
 ```bash
-cd dm-mcp
-go mod tidy
-go build -o dm-mcp.exe
+curl -X POST http://localhost:8090/ \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"database_info","arguments":{}}}'
 ```
 
-## 环境变量
+### stdio 模式（本地编排器子进程接入）
 
-| 变量 | 必填 | 默认值 | 说明 |
-|------|------|--------|------|
-| `DM_HOST` | 否 | `localhost` | 数据库主机地址 |
-| `DM_PORT` | 否 | `5236` | 数据库端口 |
-| `DM_USER` | 否 | `SYSDBA` | 用户名 |
-| `DM_PASSWORD` | 是 | — | 密码 |
-| `DM_DATABASE` | 否 | `DMDB` | 数据库名 |
-| `DM_SCHEMA` | 否 | — | 默认 Schema |
-| `DM_FLDR_PATH` | 否 | `dmfldr` | dmfldr 工具路径（CSV 导入用） |
-| `DM_EXP_PATH` | 否 | `dexp` | dexp 工具路径（逻辑导出用） |
-| `DM_IMP_PATH` | 否 | `dimp` | dimp 工具路径（逻辑导入用） |
-| `DM_RMAN_PATH` | 否 | `dmrman` | dmrman 工具路径（物理备份用） |
-
-## MCP 配置
-
-### 单数据库
-
-```json
-{
-  "mcpServers": {
-    "dm-database": {
-      "command": "D:/path/to/dm-mcp.exe",
-      "env": {
-        "DM_HOST": "localhost",
-        "DM_PORT": "5236",
-        "DM_USER": "SYSDBA",
-        "DM_PASSWORD": "your_password",
-        "DM_DATABASE": "DMDB",
-        "DM_SCHEMA": "APP"
-      }
-    }
-  }
-}
+```powershell
+dm-mcp.exe -transport=stdio
 ```
 
-### 多数据库（mcphub 多实例）
+## 测试
 
-```json
-{
-  "mcpServers": {
-    "dm-prod": {
-      "command": "D:/path/to/dm-mcp.exe",
-      "env": {
-        "DM_HOST": "192.168.1.10",
-        "DM_PORT": "5236",
-        "DM_USER": "SYSDBA",
-        "DM_PASSWORD": "prod_pass",
-        "DM_DATABASE": "PROD_DB",
-        "DM_SCHEMA": "APP"
-      }
-    },
-    "dm-test": {
-      "command": "D:/path/to/dm-mcp.exe",
-      "env": {
-        "DM_HOST": "192.168.1.20",
-        "DM_PORT": "5237",
-        "DM_USER": "SYSDBA",
-        "DM_PASSWORD": "test_pass",
-        "DM_DATABASE": "TEST_DB"
-      }
-    }
-  }
-}
+```powershell
+# 单元测试（无需数据库）
+go test ./...
+
+# 集成 + 端到端测试（需设置 DM_PASSWORD 等环境变量）
+go test -v ./database/ ./server/
+
+# 性能基准（连接真实库）
+go test -bench=. -benchtime=1x dm-mcp/database
 ```
 
 ## 项目结构
 
 ```
-dm-mcp/
-├── main.go                 # MCP 服务器入口
-├── handlers.go             # 控制工具处理器
-├── operation_tools.go      # 操作工具注册到 MCP
-├── config/
-│   └── config.go           # 数据库配置（DM_* 环境变量）
-├── database/
-│   └── connection.go       # 单例连接池
-└── tools/
-    ├── registry.go         # 工具注册中心
-    ├── utils.go            # 辅助函数
-    ├── query.go            # 查询工具
-    ├── execute.go          # DML 工具
-    ├── ddl.go              # DDL 工具
-    ├── schema_objects.go   # 视图/序列/同义词/存储过程/函数/包/触发器/约束/分区
-    ├── metadata.go         # 元数据工具
-    ├── advanced.go         # 高级功能工具
-    ├── batch_ops.go        # 批量操作和通用SQL
-    ├── admin.go            # 管理维护工具
-    ├── admin_extended.go   # 用户/角色/权限/表空间管理
-    ├── monitoring.go       # 监控诊断工具
-    ├── backup.go           # 备份恢复工具
-    ├── instance.go         # 实例与服务工具
-    └── import_csv.go       # CSV 批量导入工具
+main.go                 # 入口（-transport flag）
+config/                 # DM_* 配置（连接池/执行参数）
+database/               # 调优连接池 + 批量助手 + 基准测试
+server/                 # 官方 SDK 协议层（HTTP 无状态 / stdio）
+tools/                  # 82 个 SQL 工具（registry 模式，协议无关）
+DESIGN.md               # 完整设计方案与基准结果
 ```
 
 ## 许可证
 
-MIT License
+MIT License（工具层继承自 v1 `E:\MCP\DM-MCP`）

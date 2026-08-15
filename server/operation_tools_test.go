@@ -1,0 +1,135 @@
+package server
+
+import (
+	"context"
+	"dm-mcp/tools"
+	"encoding/json"
+	"strings"
+	"testing"
+
+	"github.com/modelcontextprotocol/go-sdk/mcp"
+)
+
+func newCallReq(name string, args map[string]interface{}) *mcp.CallToolRequest {
+	req := &mcp.CallToolRequest{}
+	req.Params = &mcp.CallToolParamsRaw{Name: name}
+	if args != nil {
+		raw, _ := json.Marshal(args)
+		req.Params.Arguments = raw
+	}
+	return req
+}
+
+func TestBuildInputSchemaTypes(t *testing.T) {
+	info := tools.ToolInfo{
+		Name:        "query_paginated",
+		Description: "执行分页查询。参数: sql(必填), page(默认1), page_size(默认20)",
+		Params:      []string{"sql", "page", "page_size"},
+	}
+	schema := buildInputSchema(info)
+
+	props, ok := schema["properties"].(map[string]any)
+	if !ok {
+		t.Fatalf("properties 缺失")
+	}
+	if typ := props["sql"].(map[string]any)["type"]; typ != "string" {
+		t.Errorf("sql 类型应为 string, got %v", typ)
+	}
+	if typ := props["page"].(map[string]any)["type"]; typ != "number" {
+		t.Errorf("page 类型应为 number, got %v", typ)
+	}
+
+	req, ok := schema["required"].([]string)
+	if !ok || len(req) != 1 || req[0] != "sql" {
+		t.Errorf("required 应包含 sql, got %v", schema["required"])
+	}
+}
+
+func TestBuildInputSchemaArrayParams(t *testing.T) {
+	info := tools.ToolInfo{
+		Name:        "insert_batch",
+		Description: "批量插入多条数据。参数: table(必填)-表名, rows(必填)-数据数组",
+		Params:      []string{"table", "rows"},
+	}
+	schema := buildInputSchema(info)
+	props := schema["properties"].(map[string]any)
+	if typ := props["rows"].(map[string]any)["type"]; typ != "array" {
+		t.Errorf("insert_batch.rows 类型应为 array, got %v", typ)
+	}
+	req := schema["required"].([]string)
+	if len(req) != 2 {
+		t.Errorf("required 应包含 table 和 rows, got %v", req)
+	}
+}
+
+func TestBuildInputSchemaBooleanParams(t *testing.T) {
+	info := tools.ToolInfo{
+		Name:        "batch_execute_sql",
+		Description: "批量执行多条任意SQL。参数: statements(必填)-SQL数组, atomic(可选,默认false)",
+		Params:      []string{"statements", "atomic"},
+	}
+	schema := buildInputSchema(info)
+	props := schema["properties"].(map[string]any)
+	if typ := props["atomic"].(map[string]any)["type"]; typ != "boolean" {
+		t.Errorf("atomic 类型应为 boolean, got %v", typ)
+	}
+	if typ := props["statements"].(map[string]any)["type"]; typ != "array" {
+		t.Errorf("statements 类型应为 array, got %v", typ)
+	}
+}
+
+// TestHandleListTools 验证无需数据库的 control 工具（参数解析 + JSON 输出）。
+func TestHandleListTools(t *testing.T) {
+	req := newCallReq("dm_list_tools", map[string]interface{}{"category": "query"})
+	result, err := handleListTools(context.Background(), req)
+	if err != nil {
+		t.Fatalf("handleListTools 错误: %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("不应为错误结果: %s", result.Content[0].(*mcp.TextContent).Text)
+	}
+	text := result.Content[0].(*mcp.TextContent).Text
+	if !strings.Contains(text, `"total"`) {
+		t.Errorf("结果应包含 total: %s", text)
+	}
+}
+
+// TestHandleToolArgumentsDecoding 验证 Arguments(RawMessage) → map 解析。
+func TestHandleToolArgumentsDecoding(t *testing.T) {
+	req := newCallReq("dm_list_tools", map[string]interface{}{"category": "query"})
+	params := parseArguments(req)
+	if params["category"] != "query" {
+		t.Errorf("参数解析失败: %v", params)
+	}
+}
+
+// TestHandleExecuteTool 验证 dm_execute 参数校验（缺 tool_name 时报错）。
+func TestHandleExecuteTool(t *testing.T) {
+	req := newCallReq("dm_execute", map[string]interface{}{})
+	result, err := handleExecuteTool(context.Background(), req)
+	if err != nil {
+		t.Fatalf("handleExecuteTool 错误: %v", err)
+	}
+	if !result.IsError {
+		t.Errorf("缺少 tool_name 应返回错误结果")
+	}
+	text := result.Content[0].(*mcp.TextContent).Text
+	if !strings.Contains(text, "tool_name") {
+		t.Errorf("错误信息应提及 tool_name: %s", text)
+	}
+}
+
+func TestBuildTool(t *testing.T) {
+	info := tools.ToolInfo{
+		Name:        "count",
+		Description: "统计表记录数。参数: table(必填), where(可选)",
+		Params:      []string{"table", "where"},
+	}
+	tool := buildTool(info)
+	if tool.Name != "count" {
+		t.Errorf("tool 名称错误: %s", tool.Name)
+	}
+	if tool.InputSchema == nil {
+		t.Error("InputSchema 不应为 nil")
+	}
+}

@@ -1,8 +1,9 @@
 package tools
 
 import (
-	"encoding/json"
+	"dm-mcp/database"
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -90,36 +91,48 @@ func handleInsertBatch(params map[string]interface{}) (interface{}, error) {
 		return nil, fmt.Errorf("参数 rows 是必需的且不能为空")
 	}
 
-	statements := make([]string, len(rows))
+	// 以第一行确定列结构；后续行必须包含相同列（缺失列补 nil，多余列报错）。
+	first, ok := rows[0].(map[string]interface{})
+	if !ok || len(first) == 0 {
+		return nil, fmt.Errorf("rows[0] 必须是包含数据的对象")
+	}
+	columns := make([]string, 0, len(first))
+	for col := range first {
+		columns = append(columns, col)
+	}
+	sort.Strings(columns)
+
+	dataRows := make([][]interface{}, 0, len(rows))
 	for i, row := range rows {
 		rowMap, ok := row.(map[string]interface{})
 		if !ok {
 			return nil, fmt.Errorf("rows[%d] 必须是对象", i)
 		}
-
-		columns := make([]string, 0, len(rowMap))
-		valuesStr := make([]string, 0, len(rowMap))
-
-		for col, val := range rowMap {
-			columns = append(columns, col)
-			valBytes, _ := json.Marshal(val)
-			valuesStr = append(valuesStr, string(valBytes))
+		values := make([]interface{}, len(columns))
+		for ci, col := range columns {
+			v, exists := rowMap[col]
+			if !exists && i > 0 {
+				values[ci] = nil // 缺失列按 NULL 处理
+				continue
+			}
+			if !exists {
+				return nil, fmt.Errorf("rows[%d] 缺少列 %s", i, col)
+			}
+			values[ci] = v
 		}
-
-		statements[i] = fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)",
-			table,
-			strings.Join(columns, ", "),
-			strings.Join(valuesStr, ", "))
+		dataRows = append(dataRows, values)
 	}
 
-	err := executeTransactionDB(statements)
+	// 多行 VALUES + 参数绑定 + 单事务（database 层按 DM_BATCH_SIZE 分块）。
+	affected, err := database.ExecuteBatchInsert(table, columns, dataRows)
 	if err != nil {
 		return nil, err
 	}
 
 	return map[string]interface{}{
-		"success":  true,
-		"inserted": len(rows),
+		"success":       true,
+		"inserted":      len(rows),
+		"affected_rows": affected,
 	}, nil
 }
 

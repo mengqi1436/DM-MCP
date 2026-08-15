@@ -2,59 +2,37 @@ package main
 
 import (
 	"dm-mcp/database"
-	_ "dm-mcp/tools"
+	"dm-mcp/server"
+	"flag"
 	"log"
-
-	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/mark3labs/mcp-go/server"
+	"net/http"
 )
 
-// version 发布版本号，CI 构建时通过 -ldflags "-X main.version=<tag>" 注入
+// version 发布版本号，CI 构建时可通过 -ldflags "-X main.version=<tag>" 注入。
 var version = "2.0.0"
 
 func main() {
+	transport := flag.String("transport", "http", "传输方式: http (streamable HTTP, 默认) 或 stdio")
+	addr := flag.String("addr", ":8090", "HTTP 监听地址（仅 http 模式）")
+	flag.Parse()
+
 	defer database.Close()
 
-	s := server.NewMCPServer(
-		"dm-database-mcp",
-		version,
-		server.WithToolCapabilities(true),
-	)
-
-	registerControlTools(s)
-	registerOperationTools(s)
-
-	log.Printf("达梦数据库 MCP 服务器启动 (单连接模式)")
-	log.Printf("使用 dm_list_tools 查看所有可用工具")
-	log.Printf("使用 dm_execute 执行指定工具")
-
-	if err := server.ServeStdio(s); err != nil {
-		log.Fatalf("服务器错误: %v", err)
+	switch *transport {
+	case "http":
+		handler := server.NewHTTPServer("dm-database-mcp", version)
+		log.Printf("达梦数据库 MCP 服务器启动（streamable HTTP, 无状态 2026-07-28），监听 %s", *addr)
+		log.Printf("使用 dm_list_tools 查看所有可用工具")
+		if err := http.ListenAndServe(*addr, handler); err != nil {
+			log.Fatalf("服务器错误: %v", err)
+		}
+	case "stdio":
+		log.Printf("达梦数据库 MCP 服务器启动（stdio）")
+		log.Printf("使用 dm_list_tools 查看所有可用工具")
+		if err := server.RunStdio("dm-database-mcp", version); err != nil {
+			log.Fatalf("服务器错误: %v", err)
+		}
+	default:
+		log.Fatalf("未知传输方式: %s（可选 http|stdio）", *transport)
 	}
-}
-
-func registerControlTools(s *server.MCPServer) {
-	s.AddTool(
-		mcp.NewTool("dm_list_tools",
-			mcp.WithDescription("列出所有可用的达梦数据库操作工具。可按类别筛选：query/dml/ddl/metadata/advanced/admin/import/instance"),
-			mcp.WithString("category",
-				mcp.Description("筛选类别（可选）: query, dml, ddl, metadata, advanced, admin, import, instance"),
-			),
-		),
-		handleListTools,
-	)
-
-	s.AddTool(
-		mcp.NewTool("dm_execute",
-			mcp.WithDescription("执行指定的达梦数据库操作工具"),
-			mcp.WithString("tool_name",
-				mcp.Required(),
-				mcp.Description("要执行的工具名称"),
-			),
-			mcp.WithObject("params",
-				mcp.Description("工具参数（JSON对象）"),
-			),
-		),
-		handleExecute,
-	)
 }

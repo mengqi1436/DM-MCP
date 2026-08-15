@@ -37,6 +37,9 @@ jobs:
           cp README.md TOOLS.md dist/dm-mcp-windows-amd64/
           cd dist && zip -r dm-mcp-windows-amd64.zip dm-mcp-windows-amd64
 
+      - name: Copy Windows bare binary (for npm)
+        run: cp dist/dm-mcp-windows-amd64/dm-mcp.exe dist/dm-mcp.exe
+
       # ---- Linux amd64 ----
       - name: Build Linux amd64
         env:
@@ -50,11 +53,40 @@ jobs:
           cp README.md TOOLS.md dist/dm-mcp-linux-amd64/
           cd dist && tar -czf dm-mcp-linux-amd64.tar.gz dm-mcp-linux-amd64
 
-      # ---- Publish ----
+      - name: Copy Linux bare binary (for npm)
+        run: cp dist/dm-mcp-linux-amd64/dm-mcp dist/dm-mcp
+
+      # ---- Publish GitHub Release ----
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             dist/*.zip
             dist/*.tar.gz
+            dist/dm-mcp.exe
+            dist/dm-mcp
           generate_release_notes: true
+
+  # ---- Publish npm (@dm-mcp/server) ----
+  # 依赖 GitHub Release 完成（npm 包的 download.js 从 Release 资产拉取二进制）。
+  npm:
+    name: Publish npm
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Align version with tag
+        run: node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('npm/package.json'));p.version=process.env.GITHUB_REF_NAME.replace(/^v/,'');fs.writeFileSync('npm/package.json',JSON.stringify(p,null,2)+'\n')"
+
+      - name: Publish to npm
+        run: npm publish npm/
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"dm-mcp/config"
 	"fmt"
 	"strings"
 )
@@ -13,7 +14,7 @@ func registerQueryTools() {
 	RegisterTool(ToolInfo{
 		Name:        "query",
 		Category:    "query",
-		Description: "执行SQL SELECT查询语句，返回查询结果",
+		Description: "执行SQL SELECT查询语句，返回查询结果。参数: sql(必填), limit(可选,默认1000)",
 		Params:      []string{"sql", "params"},
 	}, handleQuery)
 
@@ -45,6 +46,8 @@ func handleQuery(params map[string]interface{}) (interface{}, error) {
 		return nil, fmt.Errorf("参数 sql 是必需的")
 	}
 
+	sql = applyQueryLimit(sql, params)
+
 	results, err := queryDB(sql)
 	if err != nil {
 		return nil, err
@@ -54,6 +57,24 @@ func handleQuery(params map[string]interface{}) (interface{}, error) {
 		"rows":  results,
 		"count": len(results),
 	}, nil
+}
+
+// applyQueryLimit 若 SQL 未显式指定 LIMIT，则追加默认行数上限（DM_QUERY_LIMIT，
+// 可通过参数 limit 覆盖），防止无界结果集耗尽内存。
+func applyQueryLimit(sql string, params map[string]interface{}) string {
+	upper := strings.ToUpper(strings.TrimSpace(sql))
+	if strings.Contains(upper, " LIMIT ") || strings.HasSuffix(upper, " LIMIT") {
+		return sql
+	}
+	limit := getInt(params, "limit", 0)
+	if limit <= 0 {
+		limit = config.LoadConfig().QueryLimit
+	}
+	if limit <= 0 {
+		return sql
+	}
+	trimmed := strings.TrimSuffix(strings.TrimSpace(sql), ";")
+	return fmt.Sprintf("%s LIMIT %d", trimmed, limit)
 }
 
 func handleQueryOne(params map[string]interface{}) (interface{}, error) {
@@ -134,10 +155,15 @@ func handleCount(params map[string]interface{}) (interface{}, error) {
 	}
 
 	if len(results) > 0 {
-		return map[string]interface{}{
-			"table": table,
-			"count": results[0]["cnt"],
-		}, nil
+		// 达梦驱动默认返回大写列名，大小写不敏感查找 cnt
+		for k, v := range results[0] {
+			if strings.EqualFold(k, "cnt") {
+				return map[string]interface{}{
+					"table": table,
+					"count": v,
+				}, nil
+			}
+		}
 	}
 
 	return nil, fmt.Errorf("统计失败")
