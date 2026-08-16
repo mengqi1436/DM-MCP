@@ -11,6 +11,7 @@ server.err.log
 
 # 测试/验证临时文件
 .verify/
+.mutation/
 .playwright-cli/
 *.ps1
 *.bat

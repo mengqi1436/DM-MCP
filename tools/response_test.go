@@ -54,6 +54,60 @@ func TestSummarizeResultKeepsSmallList(t *testing.T) {
 	}
 }
 
+// TestSummarizeResultExactLimit 覆盖 rv.Len() <= previewLimit 的精确边界：
+// 列表长度恰好等于阈值时不截断（变异体 CONDITIONALS_BOUNDARY）。
+func TestSummarizeResultExactLimit(t *testing.T) {
+	items := make([]map[string]interface{}, 0, 20)
+	for i := 0; i < 20; i++ {
+		items = append(items, map[string]interface{}{"ID": i})
+	}
+	in := map[string]interface{}{"rows": items, "count": 20}
+	out, summary := SummarizeResult("query", in, 20)
+	if summary != nil {
+		t.Fatal("长度等于阈值时不应截断")
+	}
+	if _, ok := out.(map[string]interface{})["was_truncated"]; ok {
+		t.Error("长度等于阈值时不应标记 was_truncated")
+	}
+}
+
+// TestSummarizeResultEmptyFields 覆盖 availableFields 返回空（首条非 map）
+// 时 len(f) > 0 分支为假的情况（变异体 CONDITIONALS_BOUNDARY/NEGATION）。
+func TestSummarizeResultEmptyFields(t *testing.T) {
+	items := make([]interface{}, 0, 30)
+	for i := 0; i < 30; i++ {
+		items = append(items, i) // 非 map 元素 → 无可用字段
+	}
+	in := map[string]interface{}{"rows": items}
+	out, summary := SummarizeResult("query", in, 20)
+	if summary == nil {
+		t.Fatal("应截断")
+	}
+	m := out.(map[string]interface{})
+	if _, ok := m["available_fields"]; ok {
+		t.Error("首条非 map 时不应设置 available_fields")
+	}
+	if summary.Fields != nil {
+		t.Error("summary.Fields 应为 nil")
+	}
+}
+
+// TestSummaryTextWithoutFields 覆盖 SummaryText 无字段时的分支
+// （变异体 CONDITIONALS_BOUNDARY 在 len(s.Fields) > 0）。
+func TestSummaryTextWithoutFields(t *testing.T) {
+	s := &Summary{Field: "rows", Total: 100, Returned: 20}
+	text := SummaryText(s)
+	if !strings.Contains(text, "共 100 条") {
+		t.Errorf("应包含条数: %s", text)
+	}
+	if strings.Contains(text, "可用字段") {
+		t.Errorf("无字段时不应出现可用字段提示: %s", text)
+	}
+	if !strings.Contains(text, "取全量") {
+		t.Errorf("应包含取全量提示: %s", text)
+	}
+}
+
 func TestSummarizeResultSkipsStructuralTools(t *testing.T) {
 	cols := make([]map[string]interface{}, 0, 50)
 	for i := 0; i < 50; i++ {

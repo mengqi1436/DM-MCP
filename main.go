@@ -9,7 +9,7 @@ import (
 )
 
 // version 发布版本号，CI 构建时可通过 -ldflags "-X main.version=<tag>" 注入。
-var version = "2.0.0"
+var version = "3.1.0"
 
 func main() {
 	transport := flag.String("transport", "http", "传输方式: http (streamable HTTP, 默认) 或 stdio")
