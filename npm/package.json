@@ -1,0 +1,27 @@
+{
+  "name": "dm-mcp",
+  "version": "0.0.0",
+  "description": "达梦数据库（DM8）MCP 服务器 — Model Context Protocol server for DM8 database",
+  "license": "MIT",
+  "bin": {
+    "dm-mcp": "cli.js"
+  },
+  "files": [
+    "cli.js",
+    "bin"
+  ],
+  "engines": {
+    "node": ">=16"
+  },
+  "scripts": {
+    "prepack": "node scripts/verify-binaries.js"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "dm",
+    "dameng",
+    "达梦",
+    "database"
+  ]
+}

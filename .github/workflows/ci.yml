@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  build-test:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build (amd64, CGO off)
+        run: |
+          GOARCH=amd64 CGO_ENABLED=0 go build -o dm-mcp2 .
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        # 数据库/stdio 集成测试在未设置 DM_PASSWORD 时自动跳过，CI 无需真实达梦实例
+        run: go test ./... -count=1
