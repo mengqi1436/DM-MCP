@@ -1,0 +1,19 @@
+# 构建产物
+dm-mcp2.exe
+dm-mcp2-linux
+*.exe
+*~
+
+# 日志
+server.log
+server.err.log
+*.log
+
+# 测试/验证临时文件
+.verify/
+.playwright-cli/
+*.ps1
+*.bat
+
+# 本地环境配置
+.env
