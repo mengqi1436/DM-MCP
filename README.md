@@ -1,12 +1,12 @@
-# 达梦数据库 MCP v2（高性能版）
+# 达梦数据库 MCP 服务器（dm-mcp）
 
-基于 **MCP 2026-07-28 无状态规范** 的达梦数据库（DM8）操作工具服务器，Go 实现，性能优先。详细设计见 [DESIGN.md](DESIGN.md)。
+基于 **MCP 2026-07-28 无状态规范** 的达梦数据库（DM8）操作工具服务器，Go 实现，性能优先。已发布到 [npm](https://www.npmjs.com/package/dm-mcp) 与 [GitHub Releases](https://github.com/mengqi1436/DM-MCP/releases)。
 
 ## 特性
 
 - **双传输**：streamable HTTP（无状态，2026-07-28 规范）为主 + stdio 兼容，`-transport` 切换
-- **82 个工具**：查询、DML、DDL、元数据、管理、监控、备份、CSV 导入、实例管理
-- **性能优化**：多行 VALUES 批量插入（10k 行比 v1 快 7.6x）、连接池调优、预编译语句缓存、查询行数上限保护
+- **83 个工具**：查询、DML、DDL、元数据、管理、监控、备份、CSV 导入、实例管理
+- **性能优化**：多行 VALUES 批量插入（10k 行比 v1 快 7.6x）、连接池调优、查询行数上限保护
 - **Token 节省（2026-07-28 官方最佳实践）**：
   - **双通道返回**：`content`（紧凑文本）+ `structuredContent`（结构化 JSON，SEP-2106），新客户端直接解析结构化数据
   - **结果摘要化**：大列表结果默认截断到 `DM_LIST_PREVIEW` 条（默认 20），附 `was_truncated`/`_total`/`available_fields`/`summary` 提示，模型可据此分页取全量——实测 1000 行查询省 ~98% token
@@ -15,13 +15,29 @@
 
 ## 环境要求
 
-- Go 1.21+（**本机需以 `GOARCH=amd64` 编译**，达梦驱动在 32 位 int 下无法编译）
+- Go 1.26.5+（源码构建；**需以 `GOARCH=amd64` 编译**，达梦驱动在 32 位 int 下无法编译）
 - 达梦数据库 8.x
 - 驱动：`gitee.com/chunanyong/dm`（go mod 自动拉取）
 
-## 构建
+## 安装
+
+### 方式一：npm（推荐，免编译）
 
 ```powershell
+npm install -g dm-mcp
+```
+
+安装后提供 `dm-mcp` 命令（内置 win32/linux/darwin × x64/arm64 预编译二进制，以 stdio 模式启动）：
+
+```powershell
+dm-mcp
+```
+
+### 方式二：源码构建
+
+```powershell
+git clone https://github.com/mengqi1436/DM-MCP.git
+cd DM-MCP
 $env:GOARCH="amd64"; $env:CGO_ENABLED="0"
 go build -o dm-mcp2.exe .
 ```
@@ -80,6 +96,22 @@ curl -X POST http://localhost:8090/ \
 dm-mcp2.exe -transport=stdio
 ```
 
+## 工具集（83 个）
+
+| 类别 | 工具 |
+|---|---|
+| **control(3)** | `dm_list_tools`、`dm_get_tool`、`dm_execute` |
+| **query(5)** | `query`、`query_one`、`query_paginated`、`count`、`batch_query` |
+| **dml(7)** | `insert`、`insert_batch`、`update`、`update_batch`、`delete`、`delete_batch`、`merge` |
+| **ddl(14)** | `create_table`、`alter_table`、`drop_table`、`create_index`、`drop_index`、`execute_ddl`、`batch_create_tables`、`batch_create_indexes`、`batch_drop_tables`、`batch_drop_indexes`、`create_view`、`drop_view`、`create_sequence`、`drop_sequence` |
+| **metadata(18)** | `list_databases`、`list_schemas`、`list_tables`、`list_views`、`list_sequences`、`list_synonyms`、`list_procedures`、`list_functions`、`list_packages`、`list_triggers`、`describe_table`、`batch_describe_tables`、`list_indexes`、`describe_index`、`search_indexes`、`get_table_ddl`、`list_constraints`、`list_table_partitions` |
+| **admin(12)** | `database_info`、`list_users`、`create_user`、`drop_user`、`grant_privilege`、`revoke_privilege`、`create_role`、`drop_role`、`list_roles`、`table_statistics`、`list_tablespaces`、`create_tablespace` |
+| **advanced(6)** | `execute_transaction`、`call_procedure`、`call_function`、`explain_plan`、`execute_sql`、`batch_execute_sql` |
+| **monitoring(6)** | `active_sessions`、`lock_info`、`slow_queries`、`tablespace_usage`、`instance_parameters`、`session_memory` |
+| **backup(4)** | `logical_export`、`logical_import`、`physical_backup`、`physical_restore` |
+| **import(2)** | `batch_import_csv`、`export_table_data` |
+| **instance(6)** | `create_database`、`delete_database`、`start_database_service`、`stop_database_service`、`restart_database_service`、`database_service_status` |
+
 ## 测试
 
 ```powershell
@@ -100,10 +132,12 @@ main.go                 # 入口（-transport flag）
 config/                 # DM_* 配置（连接池/执行参数）
 database/               # 调优连接池 + 批量助手 + 基准测试
 server/                 # 官方 SDK 协议层（HTTP 无状态 / stdio）
-tools/                  # 82 个 SQL 工具（registry 模式，协议无关）
-DESIGN.md               # 完整设计方案与基准结果
+tools/                  # 83 个 SQL 工具（registry 模式，协议无关）
+npm/                    # npm 发布包装（cli.js 启动器 + 预编译二进制）
+.github/workflows/      # CI 与 Release（构建 5 平台二进制并发布 npm）
+DESIGN.md               # 设计方案与基准结果
 ```
 
 ## 许可证
 
-MIT License（工具层继承自 v1 `E:\MCP\DM-MCP`）
+MIT License

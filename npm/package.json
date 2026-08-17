@@ -3,6 +3,14 @@
   "version": "0.0.0",
   "description": "达梦数据库（DM8）MCP 服务器 — Model Context Protocol server for DM8 database",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mengqi1436/DM-MCP.git"
+  },
+  "homepage": "https://github.com/mengqi1436/DM-MCP",
+  "bugs": {
+    "url": "https://github.com/mengqi1436/DM-MCP/issues"
+  },
   "bin": {
     "dm-mcp": "cli.js"
   },

@@ -1,8 +1,8 @@
 # 达梦数据库 MCP v2 设计方案
 ## 基于 MCP 2026-07-28 无状态规范的高性能数据库 MCP
 
-- **版本**：2.0.0
-- **代码位置**：`E:\MCP\DM-mcp-2.0`
+- **版本**：3.1.1
+- **代码位置**：`E:\MCP\DM-MCP`
 - **目标环境**：达梦 DM8，本机 `SYSDBA/<你的密码>@localhost:5236`（数据库 `DAMENG`）
 - **状态**：已实现并通过全部验收标准（含真实数据库端到端验证与性能基准）
 
@@ -82,7 +82,7 @@
 │  server/http.go  : NewStreamableHTTPHandler{Stateless:true}│
 │  server/stdio.go : StdioTransport                          │
 │  server/operation_tools.go: v1 元数据 → 官方 SDK Tool(schema)│
-│  tools/*.go     : 82 个 SQL 工具（registry 模式，协议无关） │
+│  tools/*.go     : 83 个 SQL 工具（registry 模式，协议无关） │
 │  database/connection.go: 调优连接池 + 批量助手 + 超时      │
 │  config/config.go: DM_* 环境变量（含连接池/执行参数）       │
 └──────────────────────────┬────────────────────────────────┘
@@ -111,7 +111,6 @@
 
 - Schema 通过 DSN `schema` 属性传递，驱动在每连接建立时自动 `set schema`（全连接池生效，替代 v1 的 `ALTER SESSION` 单连接方案）
 - `DM_DRIVER_PARAMS` 可透传更多驱动属性（如 `rowPrefetch=100&stmtPoolMaxSize=50`）
-- 预编译语句缓存：`sync.Map` 缓存 `sql.Stmt`（key=SQL 文本，容量 256），高频 SQL 复用 Prepare 结果；对固定分块大小的批量语句命中率极高
 
 ### 6.3 执行层（工具内部）
 - **批量 DML 用多行 VALUES 参数绑定**（`ExecuteBatchInsert`）：`INSERT INTO t (c1,c2) VALUES (:1,:2),(:3,:4)...`，按 `DM_BATCH_SIZE` 分块、单事务、失败返回成功批数
@@ -124,12 +123,12 @@
 
 ---
 
-## 7. 完整工具清单（82 个）
+## 7. 完整工具清单（83 个）
 
-- **control(2)**：dm_list_tools、dm_execute
+- **control(3)**：dm_list_tools、dm_get_tool、dm_execute
 - **query(5)**：query、query_one、query_paginated、count、batch_query
 - **dml(7)**：insert、insert_batch、update、update_batch、delete、delete_batch、merge
-- **ddl(14)**：create_table、alter_table、drop_table、create_index、drop_index、execute_ddl、batch_create_tables、batch_create_indexes、batch_drop_tables、batch_drop_indexes、batch_execute_ddl、create_view、drop_view、create_sequence
+- **ddl(14)**：create_table、alter_table、drop_table、create_index、drop_index、execute_ddl、batch_create_tables、batch_create_indexes、batch_drop_tables、batch_drop_indexes、create_view、drop_view、create_sequence、drop_sequence
 - **metadata(18)**：list_databases、list_schemas、list_tables、list_views、list_sequences、list_synonyms、list_procedures、list_functions、list_packages、list_triggers、describe_table、batch_describe_tables、list_indexes、describe_index、search_indexes、get_table_ddl、list_constraints、list_table_partitions
 - **admin(12)**：database_info、list_users、create_user、drop_user、grant_privilege、revoke_privilege、create_role、drop_role、list_roles、table_statistics、list_tablespaces、create_tablespace
 - **advanced(6)**：execute_transaction、call_procedure、call_function、explain_plan、execute_sql、batch_execute_sql
@@ -303,4 +302,4 @@ DM-mcp-2.0/
 | 结构豁免 | `noTruncateTools`：describe_table/batch_describe_tables/get_table_ddl/query_paginated/query_one/batch_query/dm_list_tools 不截断（结构完整性优先） | 宽表列清单、DDL 不被误截断 |
 | 配置 | `DM_LIST_PREVIEW`（默认 20） | 按需调大/调小 |
 
-实现位置：`server/operation_tools.go`（`jsonResult`/`structuredResult`/`dm_get_tool`）、`tools/response.go`（`SummarizeResult` 纯函数）、`config/config.go`。测试：`tools/response_test.go`、`server/operation_tools_test.go` 扩展。
+实现位置：`server/operation_tools.go`（`jsonResult` 双通道 / `dm_get_tool`）、`tools/response.go`（`SummarizeResult` 纯函数）、`config/config.go`。测试：`tools/response_test.go`、`server/operation_tools_test.go` 扩展。
