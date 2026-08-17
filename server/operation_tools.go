@@ -6,6 +6,7 @@ import (
 	"dm-mcp2/tools"
 	"encoding/json"
 	"regexp"
+	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -110,10 +111,8 @@ func handleListTools(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallTo
 
 // briefPurpose 提取描述中"参数:"之前的一句话用途。
 func briefPurpose(desc string) string {
-	for i := 0; i+len("参数:") <= len(desc); i++ {
-		if desc[i:i+len("参数:")] == "参数:" {
-			return desc[:i]
-		}
+	if i := strings.Index(desc, "参数:"); i >= 0 {
+		return desc[:i]
 	}
 	return desc
 }

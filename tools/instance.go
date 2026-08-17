@@ -430,13 +430,13 @@ func buildServiceCommand(options serviceControlOptions) (string, []string, strin
 			}
 			scriptPath = filepath.Join(options.BinDir, options.ServiceName)
 		}
-		return scriptPath, []string{scriptAction(options.Action)}, manager, nil
+		return scriptPath, []string{options.Action}, manager, nil
 	case "systemd":
 		unit := options.ServiceName
 		if !strings.HasSuffix(unit, ".service") {
 			unit += ".service"
 		}
-		return "systemctl", []string{systemdAction(options.Action), unit}, manager, nil
+		return "systemctl", []string{options.Action, unit}, manager, nil
 	default:
 		return "", nil, "", fmt.Errorf("service_manager 必须是 auto、script、systemd 或 windows")
 	}
@@ -565,20 +565,6 @@ func isValidServiceManager(manager string) bool {
 	default:
 		return false
 	}
-}
-
-func scriptAction(action string) string {
-	if action == "status" {
-		return "status"
-	}
-	return action
-}
-
-func systemdAction(action string) string {
-	if action == "status" {
-		return "status"
-	}
-	return action
 }
 
 func validateOptionalDMIdentifier(name, value string) error {

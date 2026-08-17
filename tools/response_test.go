@@ -146,8 +146,13 @@ func TestSummarizeResultNonMapPassthrough(t *testing.T) {
 	}
 }
 
+// estimateTokenLen 按约 4 字符/token 估算文本长度（测试辅助）。
+func estimateTokenLen(s string) int {
+	return len(s) / 4
+}
+
 func TestEstimateTokenLen(t *testing.T) {
-	if EstimateTokenLen(strings.Repeat("a", 400)) != 100 {
+	if estimateTokenLen(strings.Repeat("a", 400)) != 100 {
 		t.Error("估算 400 字符应约 100 token")
 	}
 }

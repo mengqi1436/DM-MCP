@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"strings"
 	"sync"
-	"time"
 
 	_ "gitee.com/chunanyong/dm"
 )
@@ -17,15 +16,7 @@ var (
 	cfg     *config.Config
 	once    sync.Once
 	initErr error
-
-	// stmtCache 预编译语句缓存：key=SQL 文本，value=已 Prepare 的语句。
-	// database/sql 的 *sql.Stmt 并发安全，可被多个 goroutine 复用。
-	stmtMu    sync.Mutex
-	stmtCache = make(map[string]*sql.Stmt)
 )
-
-// maxStmtCache 语句缓存容量上限，超限时整体清空重建（简单淘汰策略）。
-const maxStmtCache = 256
 
 func getCfg() *config.Config {
 	if cfg == nil {
@@ -66,31 +57,6 @@ func GetDB() (*sql.DB, error) {
 // withTimeout 为单次操作创建带查询超时的 context。
 func withTimeout() (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.Background(), getCfg().QueryTimeout)
-}
-
-// getStmt 获取预编译语句（带缓存）。
-func getStmt(ctx context.Context, sqlStr string) (*sql.Stmt, error) {
-	stmtMu.Lock()
-	defer stmtMu.Unlock()
-	if stmt, ok := stmtCache[sqlStr]; ok {
-		return stmt, nil
-	}
-	d, err := GetDB()
-	if err != nil {
-		return nil, err
-	}
-	stmt, err := d.PrepareContext(ctx, sqlStr)
-	if err != nil {
-		return nil, err
-	}
-	if len(stmtCache) >= maxStmtCache {
-		for k, s := range stmtCache {
-			s.Close()
-			delete(stmtCache, k)
-		}
-	}
-	stmtCache[sqlStr] = stmt
-	return stmt, nil
 }
 
 // Query 执行 SELECT，返回结果集（键为列名）。
@@ -278,18 +244,10 @@ func scanRows(rows *sql.Rows) ([]map[string]interface{}, error) {
 	return results, rows.Err()
 }
 
-// Close 关闭连接池并释放预编译语句缓存。
+// Close 关闭数据库连接池。
 func Close() error {
-	stmtMu.Lock()
-	defer stmtMu.Unlock()
-	for k, s := range stmtCache {
-		s.Close()
-		delete(stmtCache, k)
-	}
 	if db != nil {
 		return db.Close()
 	}
 	return nil
 }
-
-var _ = time.Second // 保持 time 导入（供后续扩展）

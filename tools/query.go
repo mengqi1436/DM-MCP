@@ -15,14 +15,14 @@ func registerQueryTools() {
 		Name:        "query",
 		Category:    "query",
 		Description: "执行SQL SELECT查询语句，返回查询结果。参数: sql(必填), limit(可选,默认1000)",
-		Params:      []string{"sql", "params"},
+		Params:      []string{"sql", "limit"},
 	}, handleQuery)
 
 	RegisterTool(ToolInfo{
 		Name:        "query_one",
 		Category:    "query",
-		Description: "执行SQL查询，只返回第一条记录",
-		Params:      []string{"sql", "params"},
+		Description: "执行SQL查询，只返回第一条记录。参数: sql(必填)",
+		Params:      []string{"sql"},
 	}, handleQueryOne)
 
 	RegisterTool(ToolInfo{

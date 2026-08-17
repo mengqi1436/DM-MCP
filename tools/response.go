@@ -107,8 +107,3 @@ func SummaryText(s *Summary) string {
 	b.WriteString("取全量: 请使用分页查询（如 query_paginated）或增大 limit 参数。")
 	return b.String()
 }
-
-// EstimateTokenLen 按约 4 字符/token 估算文本长度（供测试断言 token 节省用）。
-func EstimateTokenLen(s string) int {
-	return len(s) / 4
-}
